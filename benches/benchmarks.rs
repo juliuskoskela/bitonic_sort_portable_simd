@@ -55,6 +55,18 @@ fn vector_of_i32x16(size: usize) -> Vec<[i32; 16]> {
 	vec
 }
 
+fn vector_of_i64x8(size: usize) -> Vec<[i64; 8]> {
+	let mut rng = rand::thread_rng();
+	let mut vec = Vec::with_capacity(size);
+	for _ in 0..size {
+		let mut arr = [0; 8];
+		for i in 0..8 {
+			arr[i] = rng.gen();
+		}
+		vec.push(arr);
+	}
+	vec
+}
 
 fn is_fsorted(v: &[f32]) -> bool {
 	for i in 1..v.len() {
@@ -66,6 +78,15 @@ fn is_fsorted(v: &[f32]) -> bool {
 }
 
 fn is_isorted(v: &[i32]) -> bool {
+	for i in 1..v.len() {
+		if v[i - 1] > v[i] {
+			return false;
+		}
+	}
+	true
+}
+
+fn is_isorted64(v: &[i64]) -> bool {
 	for i in 1..v.len() {
 		if v[i - 1] > v[i] {
 			return false;
@@ -99,6 +120,18 @@ fn bench_std_sort(c: &mut Criterion) {
 				for i in 0..size {
 					v[i].sort();
 					assert!(is_isorted(&v[i]));
+				}
+			});
+		});
+	});
+
+	group.bench_with_input(BenchmarkId::new("i64", 8), &0, |b, _| {
+		let mut v = vector_of_i64x8(size);
+		b.iter(|| {
+			black_box({
+				for i in 0..size {
+					v[i].sort();
+					assert!(is_isorted64(&v[i]));
 				}
 			});
 		});
@@ -170,6 +203,25 @@ fn bench_simd_bitonic_sort(c: &mut Criterion) {
 					v[i][..4].copy_from_slice(a);
 					v[i][4..].copy_from_slice(b);
 					assert!(is_isorted(&v[i]));
+				}
+			});
+		});
+	});
+
+	group.bench_with_input(BenchmarkId::new("i64", 8), &0, |b, _| {
+		let mut v = vector_of_i64x8(size);
+		b.iter(|| {
+			black_box({
+				for i in 0..size {
+					let arr = v[i];
+					let (a, b) = arr.split_at(4);
+					let (a, b) = (i64x4::from_slice(a), i64x4::from_slice(b));
+					let (a, b) = bitonic_sort_i64x8(a, b);
+					let a = a.as_array();
+					let b = b.as_array();
+					v[i][..4].copy_from_slice(a);
+					v[i][4..].copy_from_slice(b);
+					assert!(is_isorted64(&v[i]));
 				}
 			});
 		});
